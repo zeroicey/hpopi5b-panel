@@ -94,6 +94,7 @@ static double CFG_ROTATE = -1;
 static char CFG_SCENE[32] = "";    /* 钉住某一幕（--scene）；空 = 从 panel 开始轮换 */
 static int CFG_TRANS = -1;          /* -1 = 每次自动换一种特效；>=0 = 固定 */
 static char CFG_TRENDING[256];
+static char CFG_NEWS[256];         /* 新闻幕缓存文件（news=）；空 = 用 scene 默认路径 */
 static int CFG_THEME = -1;             /* -1 自动（按时刻）· 0 白天 · 1 夜间 */
 static int CFG_THEME_DAY = 7 * 60;     /* 白天起点（分钟） */
 static int CFG_THEME_NIGHT = 19 * 60;  /* 夜间起点（分钟） */
@@ -196,6 +197,12 @@ static void read_conf_file(void) {
             char *v = p + 9;
             v[strcspn(v, " \t\r\n")] = 0;
             if (v[0]) snprintf(CFG_TRENDING, sizeof CFG_TRENDING, "%s", v);
+            continue;
+        }
+        if (strncmp(p, "news=", 5) == 0 && !CFG_NEWS[0]) {
+            char *v = p + 5;
+            v[strcspn(v, " \t\r\n")] = 0;
+            if (v[0]) snprintf(CFG_NEWS, sizeof CFG_NEWS, "%s", v);
             continue;
         }
     }
@@ -786,6 +793,7 @@ int main(int argc, char **argv) {
     }
 
     if (CFG_TRENDING[0]) scene_trending_file(CFG_TRENDING);
+    if (CFG_NEWS[0]) scene_news_file(CFG_NEWS);
     signal(SIGUSR1, on_sig); /* 立即锁屏（进登录页） */
     signal(SIGUSR2, on_sig); /* 立即回面板 */
     signal(SIGPIPE, SIG_IGN);

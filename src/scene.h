@@ -83,8 +83,11 @@ int scenes_rotating(void);
 /* 各幕（定义在 scene_*.c；scenes.c 只负责把它们排成一张表） */
 extern const scene_t SCENE_PANEL;
 extern const scene_t SCENE_TRENDING;
+extern const scene_t SCENE_NEWS;
 
 /* trending 幕的缓存文件（默认 /var/cache/hpopi5b-panel/trending.tsv） */
 void scene_trending_file(const char *path);
+/* 新闻幕的缓存文件（默认 /var/cache/hpopi5b-panel/news.tsv） */
+void scene_news_file(const char *path);
 
 #endif

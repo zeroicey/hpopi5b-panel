@@ -184,7 +184,7 @@ typedef struct {
 **回到面板时**（`set_state(ST_PANEL)`）调 `scenes_resume(now)`：打断进行中的转场、把停留计时
 从现在重新开始 —— 否则「登录页待了两分钟，一回到面板立刻又换幕」。
 
-**`trending` 幕的数据通路**（唯一会联网的幕，但仍然不自己联网）：
+**`trending` 幕的数据通路**（不自己联网，靠 timer 喂文件）：
 
 ```
 fetch-trending.py（urllib + regex，GitHub 没有 trending API）
@@ -196,6 +196,31 @@ scene_trending.c  stat() 比对 mtime/size，文件变了才重读；sig 里混�
 
 这样做的理由和 `remote` 一样：**网络与渲染隔离**。抓取失败/超时只会让榜单停在上一份，
 面板永远不需要为 HTTP 等一秒。TSV 而不是 JSON，是为了让 C 侧零依赖（`fgets` + `\t` 切列）。
+
+**`news` 幕的数据通路**（同一条模式，两列两个源）：
+
+```
+fetch-news.py（每 30min，hpopi5b-news.timer）
+     ├─ 国内热点：头条热榜 API（JSON）→ 失败退化到百度热搜 API
+     ├─ 科技：Solidot + 少数派 + 36氪 三路 RSS 合并、去重、按 pubDate 倒序
+     └─ 原子写 /var/cache/hpopi5b-panel/news.tsv（H\t标题\t源\t热度 / T\t标题\t源\tunix_ts）
+              │
+scene_news.c  stat() 比对，变了才重读；sig 混「分钟」（「N 分钟前同步」）
+              └─ 无文件 = 空态（写清楚 service 名与缓存路径）
+```
+
+**源是怎么选的**（2026-11-08 在 hpopi5b 上逐条实测，不是查文档）：
+
+| 源 | 结果 |
+| --- | --- |
+| 头条热榜 `hot-event/hot-board` | ✅ 200、50 条、带热度值 —— 左列首选 |
+| 百度热搜 `top.baidu.com/api/board` | ✅ 200、51 条、带热度，**无分类字段** —— 退化方案 |
+| Solidot / 少数派 | ✅ 200 —— 右列主力（Solidot 裸抓 403，需带 UA） |
+| 36氪 `36kr.com/feed` | ⚠️ 200 但**解析出 0 条**（feed 结构特殊），留着待修 |
+| chinanews / 界面 RSS | ✅ 200、30 条、pubDate 新鲜 —— 备选（想要「只挑时事」就换这个） |
+| 微博热搜 / 知乎热榜 | ❌ 403 / 401，m.weibo.cn 直接返回「Sina Visitor System」 |
+| 人民网 / 新浪 / 新华社 RSS | ❌ 200 但 pubDate 停在 2025 或只剩 1 条（僵尸源） |
+| Google News / HN 官方 RSS / V2EX / RSSHub | ❌ 000（TLS 或注册墙 / 超时） |
 
 **主题（白天/夜间）**
 

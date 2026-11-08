@@ -1,0 +1,11 @@
+[Unit]
+Description=每 30 分钟同步一次新闻幕数据
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=30min
+AccuracySec=1min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

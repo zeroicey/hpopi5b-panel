@@ -2,14 +2,14 @@
 
 <!-- The single live surface. Keep it under ~60 lines: it is read on every session start. -->
 
-**Status:** 🟢 第十六轮已真机验收并部署（趋势幕流式两列 + 排版计划缓存），待提交 · **Updated:** 2026-11-06 夜
+**Status:** 🟢 第十七轮（新闻幕）已真机验收并部署 + 提交 · **Updated:** 2026-11-08 22:1x
 
 ## Goal
 
 `hpcmd` 下线、全场 all-in-one 到 `hpcore`，面板**只画一台机**：主机区左右两个子列（各 2 张曲线，
 1080p 下曲线高 135 逻辑像素）＋ 下方** Tailscale 尾网块**（两个子列各 5 台）＋ **一整列**进程榜
 （按 CPU%，25 行，同值比 RSS ⇒ 空载时自动退化成内存榜）。
-两幕（`panel` / `trending`）仍在，kiosk 默认 30s 轮换；桌面/锁屏模式不轮换。
+三幕（`panel` / `trending` / `news`）仍在，kiosk 默认 30s 轮换；桌面/锁屏模式不轮换。
 
 ## Checklist
 
@@ -21,7 +21,11 @@
 - [x] **第十六轮**：趋势幕从 2×8 固定网格改**流式两列**（15 条全上屏 + 语言分布脚注）；
       挖出并修掉「行尾 `\n` 多算一行」与「每帧重排白烧 1.5% CPU」（排版计划缓存 `plan`）；
       文档：README / pitfalls §22/§23 / HANDOFF 第十六轮 / `.ai/pitfalls/cases/2026-11-06-trailing-newline-and-per-frame-layout.md`
-- [ ] 第十五 + 十六轮提交
+- [x] 第十五/十六轮已提交（`001cc1e` / `5314146`）
+- [x] **第十七轮**：新闻幕（左国内热点 14 条带热度 / 右科技 15 条带「来源 · 时间」）；
+      `tools/fetch-news.py` + `hpopi5b-news.timer`（30 分钟）喂缓存 TSV，幕只读文件；
+      选源实测表 + 版式规则写进 `docs/architecture.md` / `docs/design.md` 与
+      `.ai/decisions/2026-11-08-news-scene-source-and-layout.md`；真机验收 + 部署 + 提交
 - [ ] `--rotate` 最终值仍没定（候选 25/30/45）
 - [ ] `tools/deploy.sh` 支持 hpopi5b 落点（现在仍指向 hphelm 的 `/usr/local/bin`）
 - [ ] CPU 预算收口（见 Blockers —— 数字口径已经变了，要先重定「预算怎么量」）
@@ -32,11 +36,12 @@
 
 ## Code state
 
-`main` @ `001cc1e` + 第十五/十六轮未提交改动 · 第十六轮已部署到 hpopi5b（2026-11-06 18:1x）。
+`main` @ `5314146` + 第十七轮提交 · 第十七轮已部署到 hpopi5b（2026-11-08 22:0x）。
 现场：`hpopi5b-kiosk` active · `pgrep -cx hpopi5b-panel` = 1 · **tty1** active ·
-slick-greeter 0 · 无 X 错误 · 二进制与探针都与 `/tmp/panelb` 构建产物 sha256 一致。
-判据：`probe-frames 60` ⇒ **>30% 变化帧 0**；`LAYOUT_DEBUG=1` ⇒ `wa=399.2 ch=135.4 FIX_A=187 FIX_B=187 余=0.0`；
-单榜 25 行、尾网块 9 台（7 在线 / 2 离线、`直连 4 · 中继 2`）、`bottom = 712`；CPU 90s ⇒ **3.43%**、`VmRSS 20.4 MB`。
+slick-greeter 0 · 无 X 错误 · `hpopi5b-news.timer` enabled（NEXT = 30 min 后）·
+`/var/cache/hpopi5b-panel/news.tsv` 首行 `# news <时间> hot=14 tech=30`。
+判据：`probe-frames 50 30` ⇒ **>30% 变化帧 0**；`LAYOUT_DEBUG=1` ⇒ `news: cw=617.6 y0=94.0 avail=609.7 rows=15`；
+news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%** vs 钉住 panel **2%**（同口径旧 2 幕 2.9~3.2%）。
 **CPU A/B（真屏 :0，`performance` 模式 1.8 GHz，各 60s）**：旧三列 **3.47%** → 新单机 **3.68%**。
 第十六轮（趋势幕流式两列）：旧 **3.47/3.10** → 新 **3.97/3.12**（+0.25pp 量级，噪声内）；
 单帧绘制（趋势幕单幕、`HPOPI5B_PANEL_DEBUG=1` 的「绘制 Xms」中位）旧 **19.4ms** → 首版 29.0ms → 缓存后 **23.1ms**。
@@ -57,6 +62,8 @@ slick-greeter 0 · 无 X 错误 · 二进制与探针都与 `/tmp/panelb` 构建
   **不 fork `tailscale status`**（起进程 + 几百毫秒，1 Hz 探针扛不住）。
   ⚠️ JSON 里对端列表的键是 **`Peer`（单数）**，写 `Peers` 会静默得到 0 台。
 - 容器只剩「个数」（cgroup 目录计数，不碰 socket）；**不要再做容器清单**（用户已否：容器里的进程本来就在进程榜里）。
+- **新闻幕的缓存契约**：`H\t标题\t源\t热度` / `T\t标题\t源\tunix_ts`；抓不到保上一份，**不灌假数据**；
+  热搜**没有分类字段**（不要做关键词过滤冒充分类）；榜单右对齐量化值统一 `C_YELLOW`（不借 `C_PEACH`）。
 - **测试实例与真机实例同名** ⇒ 杀进程按 `/proc/<pid>/environ` 的 `DISPLAY` 挑 pid，永不 `pkill -f`。
 - 换二进制先 `systemctl stop`，否则 `install`/`cp` 撞 `Text file busy`（本轮踩过）。
 
@@ -91,6 +98,7 @@ slick-greeter 0 · 无 X 错误 · 二进制与探针都与 `/tmp/panelb` 构建
 
 ## Next action
 
-1. 提交第十五轮（含文档）。把 Blockers 的「预算口径三选一」交给 owner。
-2. 定 `--rotate`；`tools/deploy.sh` 改成支持 hpopi5b 落点。
-3. 若 owner 要真降 CPU：先加 PangoLayout 缓存（`v_text` 里按 (字符串, 字号, 颜色) 缓存 layout），再量 A/B。
+1. 把 Blockers 的「预算口径三选一」交给 owner。
+2. 定 `--rotate`（现在 3 幕 ⇒ 90s 一圈）；`tools/deploy.sh` 改成支持 hpopi5b 落点。
+3. 新闻幕的三个小尾巴：36氪 feed 解析 0 条；`--hot 14` < 一列 15 行；顶栏「热点 14 · 科技 30」是池子大小而非上屏条数。
+4. 若 owner 要真降 CPU：先加 PangoLayout 缓存（`v_text` 里按 (字符串, 字号, 颜色) 缓存 layout），再量 A/B。

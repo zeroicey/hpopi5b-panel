@@ -38,6 +38,15 @@ ssh hpopi5b 'rm -rf /root/hpopi5b-panel && mkdir -p /root/hpopi5b-panel && \
 ssh hpopi5b 'install -m755 /root/hpopi5b-panel/hpopi5b-panel /usr/local/lib/hpopi5b-panel/hpopi5b-panel && \
   install -m644 /root/hpopi5b-panel/tools/probe-remote.pl /usr/local/share/hpopi5b-panel/probe-remote.pl && \
   systemctl restart hpopi5b-kiosk'
+
+# ③b 只有「新闻幕 / 趋势幕」的抓取器变了才需要这几行（首次装 unit 与定时器）
+ssh hpopi5b 'install -m755 /root/hpopi5b-panel/tools/fetch-news.py /usr/local/lib/hpopi5b-panel/fetch-news.py && \
+  install -m644 /root/hpopi5b-panel/systemd/hpopi5b-news.service /etc/systemd/system/ && \
+  install -m644 /root/hpopi5b-panel/systemd/hpopi5b-news.timer   /etc/systemd/system/ && \
+  systemctl daemon-reload && systemctl enable --now hpopi5b-news.timer'
+#   验证：`systemctl list-timers hpopi5b-news.timer` 有 NEXT（30min 一轮）·
+#          `head -1 /var/cache/hpopi5b-panel/news.tsv` ⇒ `# news <时间> hot=N tech=M` 且 N/M 非 0
+#   ⚠️ 抓取器是 python3 脚本，**不跟二进制同版本**：改了它就得单独 install（不会跟着 make 走）
 ```
 
 判据（数字，别只看「像是对的」）：`systemctl is-active hpopi5b-kiosk` = active ·

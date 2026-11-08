@@ -1,0 +1,11 @@
+[Unit]
+Description=抓取新闻幕数据（国内热点 + 科技 RSS）
+Documentation=https://github.com/zeroicey/hpopi5b-panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# 抓不到就保留上一份缓存（面板照常显示上一份并标注「N 分钟前同步」；抓取失败不影响面板）
+ExecStart=/usr/local/lib/hpopi5b-panel/fetch-news.py /var/cache/hpopi5b-panel/news.tsv
+# 想换源/改条数：改 tools/fetch-news.py 顶部的 TOUTIAO / TECH_FEEDS，或往后面加 --hot 14 --tech 30
