@@ -488,12 +488,19 @@ static void render_transition(scene_trans_t *T) {
    空闲无变化时不再白白重绘，省 CPU 也少一次上屏） */
 static unsigned long long content_sig(void) {
     unsigned long long h = 1469598103934665603ULL; /* FNV-1a 64 */
-    const unsigned char *p = (const unsigned char *)&M;
-    for (size_t i = 0; i < sizeof M; i++) { h ^= p[i]; h *= 1099511628211ULL; }
-    /* 远端的快照也要进签名：否则「本机没变、远端变了」的秒里画面不更新 */
-    if (R.enabled) {
-        p = (const unsigned char *)&R.m;
-        for (size_t i = 0; i < sizeof R.m; i++) { h ^= p[i]; h *= 1099511628211ULL; }
+    const scene_t *sc = (state == ST_PANEL) ? scenes_current() : NULL;
+    /* 1Hz 采样快照只有「吃实时指标」的幕用得上（面板）和登录页用得上。
+     * ⚠ 新闻/科技幕只吃外部文件：它们的 sig 自己按分钟变，
+     * 把每秒都会变的 M / R.m 无条件混进来 = 每幕每秒整屏重绘（实测 ~20ms/次）。 */
+    int live = (state != ST_PANEL) || !sc || sc->live || scenes_transitioning();
+    if (live) {
+        const unsigned char *p = (const unsigned char *)&M;
+        for (size_t i = 0; i < sizeof M; i++) { h ^= p[i]; h *= 1099511628211ULL; }
+        /* 远端的快照也要进签名：否则「本机没变、远端变了」的秒里画面不更新 */
+        if (R.enabled) {
+            p = (const unsigned char *)&R.m;
+            for (size_t i = 0; i < sizeof R.m; i++) { h ^= p[i]; h *= 1099511628211ULL; }
+        }
     }
 #define MIX(v) do { h ^= (unsigned long long)(v); h *= 1099511628211ULL; } while (0)
     MIX(state);
@@ -501,8 +508,12 @@ static unsigned long long content_sig(void) {
     MIX(busy);
     MIX(cursor_on);
     MIX(FEED.online);
-    /* 离线秒数按**整秒**入签名：远端一断，屏幕要能持续走「离线 Ns」而不是冻住 */
-    MIX(FEED.age_s >= 0 ? (long)FEED.age_s : -1L);
+    /* 离线秒数按**整秒**入签名：远端一断，屏幕要能持续走「离线 Ns」而不是冻住。
+     * ⚠️ 只在**离线**时入：在线时 age_s 每秒都在涨（它 = now - last_frame），
+     * 把它无条件混进签名会让**每一幕**每秒整屏重绘 —— 新闻/科技幕的数据按分钟才变，
+     * 那是白烧 CPU（实测 news 幕绘制 18ms ⇒ 每秒重绘 ≈ 1.8% 单核）。
+     * 面板幕自己的数据是 1Hz 的，它会在 scene_panel.c 的 sig 里自己混。 */
+    MIX(FEED.age_s >= 0 && !FEED.online ? (long)FEED.age_s : -1L);
     MIX(retry_at > 0 ? retry_at - (int)now_s() : 0);
     for (const unsigned char *e = (const unsigned char *)g_err; *e; e++) {
         h ^= *e;
@@ -511,8 +522,7 @@ static unsigned long long content_sig(void) {
     if (state == ST_PANEL) {
         env_fill();
         /* 幕内容也进签名：换幕 / 转场进度 / 幕内数据变化才重绘 */
-        const scene_t *sc = scenes_current();
-        MIX(sc->sig(&ENV));
+        if (sc->sig) MIX(sc->sig(&ENV));
         MIX(scenes_current_index());
         if (scenes_transitioning()) {
             MIX(scenes_transition()->gen);

@@ -417,4 +417,4 @@ static unsigned long long sig(const scene_env_t *e) {
     return h;
 }
 
-const scene_t SCENE_TRENDING = {"trending", "GitHub 趋势", draw, sig};
+const scene_t SCENE_TRENDING = {"trending", "GitHub 趋势", draw, sig, 0};

@@ -10,7 +10,7 @@
 
 输出格式（面板只认这个，不解析 JSON/XML、不带依赖）：
 
-    # news 2026-11-08T21:40:00+08:00 hot=14 tech=30
+    # news 2026-11-08T21:40:00+08:00 hot=20 tech=32
     H\t<title>\t头条\t1315万
     T\t<title>\tSolidot\t1762606349
 
@@ -18,7 +18,7 @@
   · 第 3 列是来源短名，右列直接上屏；条数由面板按可用高度决定，这里只负责「给足池子」
 
 用法：
-    fetch-news.py OUT.tsv [--hot 14] [--tech 30]
+    fetch-news.py OUT.tsv [--hot 20] [--tech 32]
 
 部署：systemd 的 hpopi5b-news.timer 每 30 分钟跑一次；面板只读缓存文件，
 **网络故障与面板渲染互相隔离**（抓不到就保留上一份，面板照常显示并标注「N 分钟前同步」）。
@@ -164,7 +164,7 @@ def main() -> int:
         print(__doc__, file=sys.stderr)
         return 2
     out_path = args[0]
-    cap_hot, cap_tech = 14, 30
+    cap_hot, cap_tech = 20, 32  # 多抓一点当余量：上屏条数由版式算（13 + 28）
     for i, a in enumerate(args):
         if a == "--hot" and i + 1 < len(args):
             cap_hot = max(1, int(args[i + 1]))

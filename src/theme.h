@@ -131,12 +131,20 @@ int theme_is_night(void);
  * 纵向预算（729.7 逻辑高）：y0 = 58 + 10 = 68，列标题 26，可用 ≈ 729.7 - 26(页脚) - 94 ≈ 610
  * ⇒ 15 行/列（40×15 = 600，余 10 均摊到行距里）。
  */
-#define L_NW_Y0        (L_BODY_Y + 10.0)  /* 列标题顶部 */
-#define L_NW_HEAD_H    26.0               /* 列标题行高（含下面那条 1px 细线） */
-#define L_NW_ROW_H     40.0               /* 一行新闻的高度 */
+/* 2026-11-09 第二版（用户口径「单调、空间利用率不够、列标题可以删掉」）：
+ *   三列 = 热点 1 列 + 科技 2 列；删掉列标题行；热点首条放大；每行带第二条信息线
+ *   （热点是热度条 + 数值，科技是来源 + 时间），三列之间用 1px 竖细线分区。 */
+#define L_NW_Y0        (L_BODY_Y + 6.0)   /* 第一行顶部（列标题行删掉了 ⇒ 主体上提） */
+#define L_NW_ROW_H     44.0               /* 一行新闻的高度（两行式：24pt 标题行 + 16pt 信息行） */
+#define L_NW_LEAD_H    92.0               /* 热点列首条块高（17pt 两行标题 + 热度条） */
 #define L_NW_RANK_W    26.0               /* 序号列宽（与 trending 同宽，两个幕不要打架） */
-#define L_NW_RIGHT_W  132.0               /* 右侧「热度 / 来源·时间」预留宽度 */
-#define L_NW_ROW_PAD_MAX 8.0              /* 零头均摊到行距的封顶 */
+#define L_NW_AGE_W     44.0               /* 科技列右对齐时间「21h / 1d」的预留宽 */
+#define L_NW_HOT_FRAC   0.34              /* 热点列在（内容宽 − 2 列间距）里占的比例 */
+#define L_NW_BAR_H      2.5               /* 热度条粗细（轨道 + 游标） */
+#define L_NW_BAR_W    150.0               /* 热度条满长（封顶：条子是刻度，不是下划线） */
+#define L_NW_BAR_W_LEAD 210.0             /* 首条的热度条满长 */
+#define L_NW_BAR_GAP   12.0               /* 热度条右端到数值的留白 */
+#define L_NW_COL_PAD_MAX 8.0              /* 零头均摊到行距的封顶 */
 
 #define L_TS_GAP       18.0   /* 主机块与尾网块之间的空隙 */
 #define L_TS_TITLE_H   24.0   /* 「Tailscale 9 台 · 7 在线」这一行 */

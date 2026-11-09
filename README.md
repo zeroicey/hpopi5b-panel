@@ -200,7 +200,9 @@ HPOPI5B_PANEL_DEBUG=1 …            # 主循环仪表：it/s · poll 结果 · 
 两次都可疑就不覆盖缓存并记 journal（两次一致则当真——GitHub 自己也会给短榜）。
 换榜单：改 `systemd/hpopi5b-trending.service` 的 `ExecStart` 追加 `--since weekly` 或 `--language rust`。
 
-`news`（新闻，**两列**：左「国内热点」14 条带热度 `1337万`、右「科技」15 条带「来源 · 10h」）。
+`news`（新闻，**三列**：左「国内热点」13 条带热度 `1428万` 和一条量度杆、右「科技」28 条分两子列带「来源 / 1d」）。
+**没有列标题行**（分组靠列宽比例 + 竖细线 + 首条放大），版式规则见
+[`docs/design.md`](docs/design.md) 的「五·五 榜单幕」。
 同样是「定时抓 → 缓存 TSV → 幕只读文件」：`tools/fetch-news.py` 每 **30 分钟**（`hpopi5b-news.timer`）
 抓**头条热榜**（退化到百度热搜）当国内热点、抓 **Solidot + 少数派 + 36氪** 三路 RSS 合并按时间倒序
 当科技，原子写 `/var/cache/hpopi5b-panel/news.tsv`。选源理由与实测（微博/知乎是登录墙、人民网/新浪 RSS
@@ -240,7 +242,7 @@ src/scenes.c        幕的注册表 + 轮换调度 + 转场推进（纯逻辑）
 src/scene_panel.c   幕「运维面板」（转调 view_panel.c）
 src/scene_trending.c 幕「GitHub 趋势」（只读缓存 TSV，缺文件时给空态；流式两列 + 排版计划缓存）
 tools/fetch-trending.py GitHub Trending 抓取器（无依赖，python3；防半页：可疑重抓一次，两次都可疑则不覆盖缓存）
-src/scene_news.c   幕「新闻」（两列：国内热点 / 科技；只读缓存 TSV，缺文件时给空态 + 抓取命令）
+src/scene_news.c   幕「新闻」（三列：国内热点 1 列 + 科技 2 列，两行式 44px + 首条 92px；只读缓存 TSV，缺文件时给空态 + 抓取命令）
 tools/fetch-news.py  新闻抓取器（头条热榜 + 百度热搜 + 3 路 RSS，无依赖，python3）
 systemd/        hpopi5b-trending.{service,timer}（每 3 小时同步一次榜单）· hpopi5b-news.{service,timer}（每 30 分钟）
 src/auth.[ch]       与 setuid 助手通信（密码只走 stdin）

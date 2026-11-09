@@ -197,7 +197,7 @@ scene_trending.c  stat() 比对 mtime/size，文件变了才重读；sig 里混�
 这样做的理由和 `remote` 一样：**网络与渲染隔离**。抓取失败/超时只会让榜单停在上一份，
 面板永远不需要为 HTTP 等一秒。TSV 而不是 JSON，是为了让 C 侧零依赖（`fgets` + `\t` 切列）。
 
-**`news` 幕的数据通路**（同一条模式，两列两个源）：
+**`news` 幕的数据通路**（同一条模式；**一个抓取器出两个源**，幕上排成三列）：
 
 ```
 fetch-news.py（每 30min，hpopi5b-news.timer）
@@ -208,6 +208,9 @@ fetch-news.py（每 30min，hpopi5b-news.timer）
 scene_news.c  stat() 比对，变了才重读；sig 混「分钟」（「N 分钟前同步」）
               └─ 无文件 = 空态（写清楚 service 名与缓存路径）
 ```
+
+⚠️ **`news` / `trending` 的 `scene_t.live = 0`**：它们只吃外部文件，`panel.c` 不会把 1Hz 指标快照混进
+全局内容签名；否则每秒一次整屏重绘（实测 news 幕一次绘制 ~20 ms ⇒ 白烧 1% 单核，见 `docs/pitfalls.md` 第 24 条）。
 
 **源是怎么选的**（2026-11-08 在 hpopi5b 上逐条实测，不是查文档）：
 

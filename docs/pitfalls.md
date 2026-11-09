@@ -289,3 +289,33 @@ ssh hpopi5b '/tmp/drawcost.sh bprev/hpopi5b-panel prev 1; /tmp/drawcost.sh bnew/
 **正解**：`scene_trending.c` 里一张**排版计划缓存** `plan`（键 = 列宽 + 缓存文件 `mtime`/`size` + 条数），
 把「行高、截断后的仓库名、语言/涨星文字及其宽度、语言分布那一行」全部只在数据变化时算一次。
 **纪律**：`draw()` 里只允许做「不缓存就没法画」的排版；能量的一次都不许每帧量。
+
+---
+
+## G. 2026-11-09 新闻幕改三列那一轮
+
+### 24. 全局内容签名混进「每秒都在涨」的采样值 ⇒ 不吃实时数据的幕也 1 Hz 整屏重绘
+
+**症状**：`HPOPI5B_PANEL_DEBUG=1` 下把新闻幕钉住（`--scene news`），`重绘 1` 每秒一次，
+`绘制 18~25ms` —— 加起来 **≈ 2% of one core**，而这幕的数据 30 分钟才变一次。
+
+**根因**：`src/panel.c` 的 `content_sig()` 无条件把 `M`（本机 1Hz 采样快照）、`R.m`（远端快照）、
+`FEED.age_s`（= `now - last_frame`，**在线时每秒都在涨**）混进签名。面板幕确实需要它们，
+但「只吃外部文件的幕」（trending / news）根本不用 —— 它们自己的 `sig()` 已经混了 `mtime` 与「整分钟」。
+
+**判据**：钉住一个文件驱动的幕，`重绘` 应当只在**分钟翻转 / 缓存文件被改写**时 ≥1，其余秒为 0。
+
+```sh
+ssh hpopi5b 'cd /tmp/panelb && (DISPLAY=:9 HPOPI5B_PANEL_DEBUG=1 timeout 20 ./hpopi5b-panel \
+  --kiosk --scale 1.48 --scene news --lock /tmp/x9.lock >/tmp/x9.log 2>&1 &) ; sleep 16
+  grep -a "重绘" /tmp/x9.log | tail -3'
+# 修好后：重绘 0 / 绘制 0.0ms；错的时候：重绘 1 / 绘制 ~20ms 每秒
+```
+
+**正解**：`scene_t` 加 `int live`（1 = 画面随 1Hz 采样变），`content_sig()` 只在
+`state != ST_PANEL || sc->live || scenes_transitioning()` 时混 `M` / `R.m`；
+`FEED.age_s` 只在**离线**（`age_s >= 0 && !FEED.online`）时才混（面板要持续走「离线 Ns」）。
+新增一幕时先回答一个问题：**我的画面会自己变吗？** 不会就写 `live = 0`。
+
+**实测收益**（真屏 :0，`performance` 1.8 GHz，90 s 窗口）：旧二进制 **2.94%** → 新 **2.01%**
+（三列新闻幕的内容比两列多 40%，净下来还省了 0.9 个百分点）。

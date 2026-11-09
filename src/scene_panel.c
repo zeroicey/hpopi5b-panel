@@ -40,4 +40,4 @@ static void draw(cairo_t *cr, const view_ctx_t *v, const scene_env_t *e) {
                     remote_on ? e->r->target : NULL);
 }
 
-const scene_t SCENE_PANEL = {"panel", "运维面板", draw, sig};
+const scene_t SCENE_PANEL = {"panel", "运维面板", draw, sig, 1};

@@ -2,7 +2,7 @@
 
 <!-- The single live surface. Keep it under ~60 lines: it is read on every session start. -->
 
-**Status:** 🟢 第十七轮（新闻幕）已真机验收并部署 + 提交 · **Updated:** 2026-11-08 22:1x
+**Status:** 🟢 第十八轮（新闻幕三列化 + `scene_t.live`）已真机验收并部署，**待提交** · **Updated:** 2026-11-09 17:0x
 
 ## Goal
 
@@ -10,6 +10,7 @@
 1080p 下曲线高 135 逻辑像素）＋ 下方** Tailscale 尾网块**（两个子列各 5 台）＋ **一整列**进程榜
 （按 CPU%，25 行，同值比 RSS ⇒ 空载时自动退化成内存榜）。
 三幕（`panel` / `trending` / `news`）仍在，kiosk 默认 30s 轮换；桌面/锁屏模式不轮换。
+新闻幕是 **1+2 列**（热点 13 条带量度杆 + 科技 28 条分两子列），**没有列标题行**，首条 92px 放大。
 
 ## Checklist
 
@@ -26,6 +27,11 @@
       `tools/fetch-news.py` + `hpopi5b-news.timer`（30 分钟）喂缓存 TSV，幕只读文件；
       选源实测表 + 版式规则写进 `docs/architecture.md` / `docs/design.md` 与
       `.ai/decisions/2026-11-08-news-scene-source-and-layout.md`；真机验收 + 部署 + 提交
+- [x] **第十八轮**：新闻幕两列 → **三列 + 首条放大**（删列标题行、两行式 44px、量度杆左端钉死封顶 150、
+      顶栏改报「上屏条数」）；挖出并修掉「1 Hz 采样快照无条件进全局签名 ⇒ 文件驱动的幕也每秒整屏重绘」
+      （`scene_t.live`；真屏 **2.94% → 2.01%**）。落文档：`docs/design.md` 五·五 / `docs/pitfalls.md` §24 /
+      `.ai/pitfalls/cases/2026-11-09-sig-mixes-live-metrics.md` / HANDOFF 第十八轮 / 决策修订小节
+- [ ] 第十八轮 `git commit`（上轮 push 曾因 hpcore → github:443 TLS 握手失败而未推，先确认可达）
 - [ ] `--rotate` 最终值仍没定（候选 25/30/45）
 - [ ] `tools/deploy.sh` 支持 hpopi5b 落点（现在仍指向 hphelm 的 `/usr/local/bin`）
 - [ ] CPU 预算收口（见 Blockers —— 数字口径已经变了，要先重定「预算怎么量」）
@@ -46,6 +52,8 @@ news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%
 第十六轮（趋势幕流式两列）：旧 **3.47/3.10** → 新 **3.97/3.12**（+0.25pp 量级，噪声内）；
 单帧绘制（趋势幕单幕、`HPOPI5B_PANEL_DEBUG=1` 的「绘制 Xms」中位）旧 **19.4ms** → 首版 29.0ms → 缓存后 **23.1ms**。
 ⚠️ 同一份二进制在 `ondemand` 空载（408 MHz）下量到 **5.8%** —— 频率让 CPU-秒差 5 倍，**只做 A/B 比**。
+第十八轮（新闻幕三列化）：A/B 同口径 **旧 2.94% → 新 2.01%**（90s 窗口、3 幕轮换）；
+单帧绘制 news ~20ms 但只在分钟翻转/缓存改写时发生；上屏 41 条（旧 29 条）。
 第七轮到第十二轮的逐轮记录在 `.ai/sessions/2026-11-05-rounds-7-to-12-handoff.md`。
 
 ## Constraints
@@ -66,6 +74,9 @@ news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%
   热搜**没有分类字段**（不要做关键词过滤冒充分类）；榜单右对齐量化值统一 `C_YELLOW`（不借 `C_PEACH`）。
 - **测试实例与真机实例同名** ⇒ 杀进程按 `/proc/<pid>/environ` 的 `DISPLAY` 挑 pid，永不 `pkill -f`。
 - 换二进制先 `systemctl stop`，否则 `install`/`cp` 撞 `Text file busy`（本轮踩过）。
+- **`scene_t.live`**：画面会随 1 Hz 采样变的幕写 1（目前只有 `panel`），只吃外部文件的写 0
+  （`trending`/`news`）。写错不会画错，但会让那一幕每秒整屏重绘（≈1% of one core）。
+- **行高/字高用 `v_text_h()` 量**（13pt 实测行高 24，不是 18），不要拿字号乘系数估版式。
 
 ## Blockers
 

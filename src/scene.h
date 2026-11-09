@@ -37,6 +37,11 @@ typedef struct scene_s {
     const char *label;   /* 日志/列表里的人话名字 */
     void (*draw)(cairo_t *cr, const view_ctx_t *v, const scene_env_t *e);
     unsigned long long (*sig)(const scene_env_t *e); /* 可为 NULL（= 静态） */
+    int live;            /* 1 = 画面会随 1Hz 采样变（本机/远端指标）
+                          * ⇒ panel.c 把 metrics 快照混进全局签名。
+                          * 0 = 只吃外部文件/时间（trending、news）：
+                          * 别让每秒都在涨的采样值把整屏重绘逼出来（实测 news 幕
+                          * 一次绘制 ~20ms，每秒白烧半核的两个点）。 */
 } scene_t;
 
 /* ---- registry ---- */
