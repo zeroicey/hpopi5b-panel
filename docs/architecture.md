@@ -157,14 +157,17 @@ typedef struct {
     const char *id, *label;
     void (*draw)(cairo_t *, const view_ctx_t *, const scene_env_t *);
     unsigned long long (*sig)(const scene_env_t *);
+    int live;   /* 1 = 混入 1Hz 采样；0 = 只吃文件/时间（见下） */
 } scene_t;
 ```
 
 - `draw` 收到**已经 `cairo_scale` 过的**上下文，底图（`bgpix`）也已经 `XCopyArea` 到目标缓冲上；
   幕只画自己的内容，不铺底、不碰 X。
 - `sig` 是**幕自己的内容签名**，与 `panel.c` 里原有的 `content_sig()` 相与。`panel` 幕哈希
-  `metrics_t`（1 Hz 变化）；`trending` 幕哈希「分钟」（「N 分钟前同步」要跟着走）——缓存文件没变时
-  一分钟才重画一次，省电也避免无意义刷新。
+  `metrics_t`（1 Hz 变化）；`trending` / `news` / `weather` 幕哈希「缓存文件 mtime/size + 分钟」
+  （「N 分钟前同步」要跟着走）——缓存文件没变时一分钟才重画一次，省电也避免无意义刷新。
+- `live` 决定 `panel.c` 要不要把每秒都在变的 `metrics_t` 混进全局签名：`panel` = 1；
+  `trending` / `news` / `weather` = 0（只吃外部文件，否则每秒整屏重绘，实测 news 幕一次 ~20 ms）。
 - 调度只有**一个数**：`--rotate S`（默认 kiosk 30s、桌面/锁屏 0=不轮换）。不搞每幕不同停留。
   已经出现「信息密度差很多」的幕时，再给 `scene_t` 加 `dwell` 字段 —— 现在不要提前设计。
 
@@ -209,7 +212,7 @@ scene_news.c  stat() 比对，变了才重读；sig 混「分钟」（「N 分�
               └─ 无文件 = 空态（写清楚 service 名与缓存路径）
 ```
 
-⚠️ **`news` / `trending` 的 `scene_t.live = 0`**：它们只吃外部文件，`panel.c` 不会把 1Hz 指标快照混进
+⚠️ **`news` / `trending` / `weather` 的 `scene_t.live = 0`**：它们只吃外部文件，`panel.c` 不会把 1Hz 指标快照混进
 全局内容签名；否则每秒一次整屏重绘（实测 news 幕一次绘制 ~20 ms ⇒ 白烧 1% 单核，见 `docs/pitfalls.md` 第 24 条）。
 
 **源是怎么选的**（2026-11-08 在 hpopi5b 上逐条实测，不是查文档）：
@@ -224,6 +227,28 @@ scene_news.c  stat() 比对，变了才重读；sig 混「分钟」（「N 分�
 | 微博热搜 / 知乎热榜 | ❌ 403 / 401，m.weibo.cn 直接返回「Sina Visitor System」 |
 | 人民网 / 新浪 / 新华社 RSS | ❌ 200 但 pubDate 停在 2025 或只剩 1 条（僵尸源） |
 | Google News / HN 官方 RSS / V2EX / RSSHub | ❌ 000（TLS 或注册墙 / 超时） |
+
+**`weather` 幕的数据通路**（Open-Meteo，免 key、免注册；每 10 分钟一轮）：
+
+```
+fetch-weather.py（urllib，5 城 × 7 天 + 当前 + 24h + 空气质量）
+     ├─ forecast：current / hourly（24h：温度、体感、降水概率、降水、天气码、风）
+     ├─ daily：7 天（天气码、高低温、降水概率、降水合计、日出日落、UV）
+     ├─ air-quality：US AQI / PM2.5 / UV（失败只写 -1，主预报照常落盘）
+     └─ 原子写 /var/cache/hpopi5b-panel/weather.tsv
+              │
+scene_weather.c  stat() 比对 mtime/size，变了才重读；sig 混「分钟」（「N 分钟前同步」）
+              └─ 无文件 = 空态（写清 service 名与缓存路径）；旧数据保留 + 同步年龄变黄（>30min）
+```
+
+城市固定 5 个：id0 广东东软学院（佛山 · 南海 · 狮山，主城）/ id1 东莞 · 常平 / id2 湖北 · 利川 /
+id3 广州 / id4 深圳。坐标写死在 `tools/fetch-weather.py` 顶部 `CITIES`；要换城市只改这张表，C 侧布局
+是「1 主城 + 4 关注城市」不随城市数变。TSV 行型：`P`（主城）、`C`（19 列当前）、`H`（8 列 × 24）、
+`D`（11 列 × 7 天）；缺的数值一律 `-1`，不编零。
+
+⚠️ 天气幕**不画图标**：没有图标资产，而且真屏验收只能看像素 —— 天气词（晴/多云/阵雨/雷暴冰雹）
+按 WMO code 映射成语义色 + 文字，曲线/温度条/降水条承担视觉重量。这是 2026-11-09 与用户确认的
+版式（B：主城 + 底部关注城市条），决策见 `.ai/decisions/2026-11-09-weather-scene-layout.md`。
 
 **主题（白天/夜间）**
 

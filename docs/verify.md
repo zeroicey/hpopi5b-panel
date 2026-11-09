@@ -34,7 +34,7 @@ DISPLAY=:0 tools/probe-frames   60
 
 **判据**：抓面板窗口连续帧、逐像素比对相邻帧，**`>30%` 像素变化的帧必须是 0**。
 
-⚠️ **kiosk 每 30s 换一次幕（panel ↔ trending ↔ news），那一次的 2 帧必然 100% 变化——不是闪。**
+⚠️ **kiosk 每 30s 换一次幕（panel ↔ trending ↔ news ↔ weather），那一次的 2 帧必然 100% 变化——不是闪。**
 怎么看：范围里当时正好 30s 的整数倍 ⇒ 用三条「闪」指纹中的后两条判（连续两帧都变**且**中间帧 PNG 明显更小）；
 要干净的数，就在隔离实例里把轮换关掉量：`DISPLAY=:9 ./hpopi5b-panel --state panel --rotate 0 --lock /tmp/xv9.lock`。
 2026-11-05 实测：同一条命令连跑三次得到 `2 / 0 / 3`，差异全来自是否跨越了换幕时刻。
@@ -54,6 +54,15 @@ frame 13 diffpx=   35124 ( 1.69%)  bbox=(52,177)-(1503,584)   ← 1Hz 内容更�
 3. 把中间那帧单独存成 PNG，**文件明显更小**（只有底色/没有文字），像素上「盒子/文字消失」。
 
 实测对照（修双缓冲前）：`1205996`、`1286011` 像素变化 / 每秒 2 次 / 中间帧 67KB vs 前后 177KB。
+
+### 天气幕专用取证（`--scene weather`，截图 + TSV 两头对）
+
+1. `python3 tools/pngcrop.py /tmp/wx.png --runs 300 --minrun 3`：主城温度条/七天气温条/城市条应各有一段
+   非背景色游程；数值与 `head -1 /var/cache/hpopi5b-panel/weather.tsv` 的 `cities=5` 对得上。
+2. `head -2 weather.tsv` 应有 `P\t广东东软学院\t佛山 · 南海 · 狮山`；`grep -c '^C\t'`=5、`^H\t`=120、`^D\t`=35。
+3. 把缓存 `touch -d '40 minutes ago'`，重开 `--scene weather`：顶栏「N 分钟前同步」应变黄（`C_YELLOW`）。
+4. 把缓存临时移走：应显示空态（服务名 + 缓存路径），不能是 0°/假曲线；移回后下一分钟自动恢复。
+5. 真机 CPU：weather 幕 `live=0` ⇒ 停留时 `重绘 0`；只在换场/分钟边界重绘一次（绘制 ~17ms）。
 
 ---
 

@@ -33,7 +33,7 @@ ssh hpopi5b 'install -m755 /tmp/panelb/hpopi5b-panel /usr/local/lib/hpopi5b-pane
 部署的完整说明（七个阶段、判据表、三层回滚、六件绝不能做的事）在 **[`docs/deploy.md`](docs/deploy.md)**。
 
 **这个项目是什么**：`hphelm`（机队里常驻工位的那台）的**运维看板 + 自研锁屏**。
-X11 + cairo + pango 纯自绘（无 GUI 工具包），约 2.1k 行 C。
+X11 + cairo + pango 纯自绘（无 GUI 工具包），约 5.7k 行 C。
 行为：空闲→资源面板，动键鼠→登录页，PAM 认证→桌面，再空闲→面板（循环）。
 
 **它不是什么**：不是通用面板、不是产品、不需要「适配更多环境」。
@@ -162,7 +162,7 @@ python3 tools/measure.py assets/panel.png --runs 240 --bands
 | `src/theme.c` | 白天/夜间两套调色板 + 固定时刻判定 | ⭐ 加主题只动这里 |
 | `src/view_panel.c` | 面板版面（主机区两子列 + 尾网块 + **一整列**进程榜） | ⭐⭐ 改面板只动这里 |
 | `src/scene.h` · `src/scenes.c` | 幕的接口（draw + 自身内容签名）与轮换/转场调度 | ⭐ 改调度只动这里 |
-| `src/scene_*.c` | 两个幕：panel / trending（两列榜单） | ⭐⭐ 加幕就新建一个文件 |
+| `src/scene_*.c` | 各幕：panel / trending / news / weather | ⭐⭐ 加幕就新建一个文件 |
 | `src/view_login.c` | 登录页版面 | ⭐ 改登录页时 |
 | `src/view.c` | 绘制基元（文字/渐变/细线/条/每核柱/sparkline/量程） | 偶尔 |
 | `src/metrics.c` | **本机**数据采集（`/proc`、`/sys`，不 fork） | 加指标时 |

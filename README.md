@@ -2,19 +2,19 @@
 
 > **现役形态（2026-11-03 起；2026-11-05 改名 `hphelm-panel` → `hpopi5b-panel`）**：跑在
 > **hpopi5b（Orange Pi 5 + DP 显示器 1920×1080）**上的**纯显示终端** —— `--kiosk`，无登录页、
-> 无桌面、不接键鼠；三幕（`panel` 运维看板 / `trending` GitHub 趋势 / `news` 新闻）按 `--rotate` 轮换。
+> 无桌面、不接键鼠；四幕（`panel` 运维看板 / `trending` GitHub 趋势 / `news` 新闻 / `weather` 天气）按 `--rotate` 轮换。
 > 源码工作副本在 **hpcore `/home/happpy/work/project/hpopi5b-panel`**（`hpcmd` 已于 2026-11-06 下线），
 > 构建与部署在 `hpopi5b` 上做，见 [`docs/deploy.md`](docs/deploy.md)。
 > **历史形态（已随 `hphelm` 2026-10-27 重装而消失）**：下文「锁屏 / 登录页 / PAM 认证」描述的是
 > 工位机 `hphelm` 上的看板+自研锁屏；认证助手仍保留源码（`src/hpopi5b-auth.c`），但**生产不安装**。
 >
 > **English TL;DR** — A hand-drawn (no GUI toolkit) X11 **ops dashboard kiosk** for one display
-> terminal in my home fleet (`hpopi5b`, Orange Pi 5): ~3.0k lines of C over cairo + pango,
+> terminal in my home fleet (`hpopi5b`, Orange Pi 5): ~5.7k lines of C over cairo + pango,
 > **~3.7% of one core** (measured A/B at a pinned 1.8 GHz; the Pi idles at 408 MHz, where the same
 > binary reads 5.8%), ~20 MiB RSS, 1 thread, zero GUI toolkit dependencies. **One** host — the
 > all-in-one `hpcore` — pulled over a long-lived ssh pipe with a read-only probe (nothing installed
 > on the remote), plus its 24 busiest processes.
-> Auto-rotating scenes (`panel` / `trending` / `news`); no login page in production.
+> Auto-rotating scenes (`panel` / `trending` / `news` / `weather`); no login page in production.
 > ⚠️ **This is not a drop-in product.** It is *my* answer for *my* machine, wired into our fleet's
 > desktop stack and operational rules. Read [「这不是给谁用的」](#这不是给谁用的我为什么这么写)
 > before copying anything.
@@ -164,7 +164,7 @@ hpopi5b-panel --lock /tmp/x.lock   # 单实例锁路径（默认 /tmp/hpopi5b-pa
 hpopi5b-panel --state panel|login  # 强制初始状态（验证界面用）
 hpopi5b-panel --kiosk             # 纯显示器：永不进登录页/桌面（Pi 看板用）
 hpopi5b-panel --remote2 hpcore    # ⚠️ 已废弃（2026-11-06 单机化）：接受但忽略，只打一行提示
-hpopi5b-panel --scene panel|trending|news  # 钉住一幕（不轮换）
+hpopi5b-panel --scene panel|trending|news|weather  # 钉住一幕（不轮换）
 hpopi5b-panel --rotate 30         # 幕轮换间隔（秒）；0 = 不轮换（kiosk 默认 30，桌面默认 0）
 hpopi5b-panel --transition dip|cut  # 转场：dip=淡出淡入（默认）· cut=硬切（验版式用）
 hpopi5b-panel --theme auto|day|night  # 主题：auto=按时刻自动切（默认）· day/night 钉住
@@ -177,7 +177,7 @@ HPOPI5B_PANEL_DEBUG=1 …            # 主循环仪表：it/s · poll 结果 · 
 
 ### 多幕（一块屏不只显示一种东西）
 
-面板是**幕**的一个实现，目前三幕：`panel`（单机双子列 + 尾网块 + 进程榜）· `trending`（GitHub 趋势，
+面板是**幕**的一个实现，目前四幕：`panel`（单机双子列 + 尾网块 + 进程榜）· `trending`（GitHub 趋势，
 **流式两列**：按每条描述实际占 1~2 行算高度、再把两列零头均摊进行距（上限 8 像素），标题行给
 「N 分钟前同步 · 共 M 条 · 今日 +X★」，右列尾部挂一行**语言分布**脚注（计数 + 单色相 alpha 递降堆叠条））。
 `--kiosk` 下默认每 **30 s** 淡出淡入换一幕；桌面/锁屏模式默认**不轮换**。
@@ -208,11 +208,19 @@ HPOPI5B_PANEL_DEBUG=1 …            # 主循环仪表：it/s · poll 结果 · 
 当科技，原子写 `/var/cache/hpopi5b-panel/news.tsv`。选源理由与实测（微博/知乎是登录墙、人民网/新浪 RSS
 是僵尸）见 [`docs/architecture.md`](docs/architecture.md) 的「新闻幕」节。
 
+`weather`（天气，**左 2/3 主城 + 右 1/3 七天 + 底部关注城市条**）：主城是广东东软学院
+（佛山 · 南海 · 狮山），左边 17.7° 大字 + 体感/湿度/风向/气压一行、24 小时气温折线与降水概率条、
+日出日落 + 空气质量；右边七行「今天/明天/周X + 天气词 + 高低温 + 全周同尺度温度条 + 降水% / mm」；
+底部「关注城市」四列：东莞 · 常平 / 湖北 · 利川 / 广州 / 深圳。数据由 `tools/fetch-weather.py`
+每 **10 分钟**（`hpopi5b-weather.timer`）从 **Open-Meteo**（免 key、免注册）抓 5 城 7 天预报 +
+空气质量，原子写 `/var/cache/hpopi5b-panel/weather.tsv`；面板只读文件，并标注「N 分钟前同步」。
+选源与字段口径见 [`docs/architecture.md`](docs/architecture.md) 的「weather 幕的数据通路」节。
+
 > 热搜是**没有分类字段**的（头条/百度都只有 标题 + 热度），所以左列必然掺体育/娱乐——这是数据源的
 > 形状，不是排版问题。想要「只挑某类」，正确做法是换源（比如只留 `chinanews` 的滚动 RSS），不是过滤热搜。
 
 轮换间隔只有一个数 `--rotate`（或 `/etc/hpopi5b-panel.conf` 的 `rotate=`）：30 s 的来历是
-「密排面板抬头到看完约 8~12 s，留 2~3 倍余量」；现在 3 幕 = 90 s 一圈，4 幕就到 2 分钟，再长值班的人会漏掉
+「密排面板抬头到看完约 8~12 s，留 2~3 倍余量」；现在 4 幕 = 120 s 一圈，已经到上限，再长值班的人会漏掉
 告警页。真要放很多幕，正确做法是「告警幕常驻 + 其余轮换」，不是把间隔压到 5 s。
 
 ## 文档地图
@@ -243,8 +251,10 @@ src/scene_panel.c   幕「运维面板」（转调 view_panel.c）
 src/scene_trending.c 幕「GitHub 趋势」（只读缓存 TSV，缺文件时给空态；流式两列 + 排版计划缓存）
 tools/fetch-trending.py GitHub Trending 抓取器（无依赖，python3；防半页：可疑重抓一次，两次都可疑则不覆盖缓存）
 src/scene_news.c   幕「新闻」（三列：国内热点 1 列 + 科技 2 列，两行式 44px + 首条 92px；只读缓存 TSV，缺文件时给空态 + 抓取命令）
+src/scene_weather.c 幕「天气」（主城 + 24h 曲线 + 7 天 + 关注城市；只读缓存 TSV，缺文件时给空态 + 服务名）
 tools/fetch-news.py  新闻抓取器（头条热榜 + 百度热搜 + 3 路 RSS，无依赖，python3）
-systemd/        hpopi5b-trending.{service,timer}（每 3 小时同步一次榜单）· hpopi5b-news.{service,timer}（每 30 分钟）
+tools/fetch-weather.py 天气抓取器（Open-Meteo 5 城 7 天 + 空气质量，无依赖，python3）
+systemd/        hpopi5b-trending.{service,timer}（每 3 小时）· hpopi5b-news.{service,timer}（每 30 分钟）· hpopi5b-weather.{service,timer}（每 10 分钟）
 src/auth.[ch]       与 setuid 助手通信（密码只走 stdin）
 src/hpopi5b-auth.c   唯一的特权代码：setuid root，调 PAM 验一次密码
 src/panel.c         X11 窗口、事件、状态机、主循环、双缓冲

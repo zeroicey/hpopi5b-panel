@@ -3,8 +3,8 @@
 > **这是本项目最重要的一份操作文档。** 它回答一件事：
 > **改完代码，怎样安全地把它变成此刻正在工位屏幕上跑的那个东西，并且知道它真的好了。**
 >
-> 适用机：`hphelm`（GMKtec G10，别名就是 `hphelm`）· 最后实测：**2026-10-21**（三条判据链全绿，
-> 只有 CPU 一条是黄字，见第七节末尾的「已知偏差」）。
+> 适用机：`hpopi5b`（Orange Pi 5，kiosk 纯显示终端）· 最后实测：**2026-11-09**（天气幕部署，四幕轮换）；
+> CPU 仍略高于 `<1%` 目标（真屏四幕 1.22%，不是黄字，见 `HANDOFF.md` 第十九轮）。
 > 相关：[`architecture.md`](architecture.md) · [`verify.md`](verify.md) · [`pitfalls.md`](pitfalls.md) ·
 > [`../AGENTS.md`](../AGENTS.md) · 机队视角的权威在 `kb/runbooks/hphelm.md`
 
@@ -39,7 +39,7 @@ ssh hpopi5b 'install -m755 /root/hpopi5b-panel/hpopi5b-panel /usr/local/lib/hpop
   install -m644 /root/hpopi5b-panel/tools/probe-remote.pl /usr/local/share/hpopi5b-panel/probe-remote.pl && \
   systemctl restart hpopi5b-kiosk'
 
-# ③b 只有「新闻幕 / 趋势幕」的抓取器变了才需要这几行（首次装 unit 与定时器）
+# ③b 只有「新闻幕 / 趋势幕 / 天气幕」的抓取器变了才需要这几行（首次装 unit 与定时器）
 ssh hpopi5b 'install -m755 /root/hpopi5b-panel/tools/fetch-news.py /usr/local/lib/hpopi5b-panel/fetch-news.py && \
   install -m644 /root/hpopi5b-panel/systemd/hpopi5b-news.service /etc/systemd/system/ && \
   install -m644 /root/hpopi5b-panel/systemd/hpopi5b-news.timer   /etc/systemd/system/ && \
@@ -47,6 +47,16 @@ ssh hpopi5b 'install -m755 /root/hpopi5b-panel/tools/fetch-news.py /usr/local/li
 #   验证：`systemctl list-timers hpopi5b-news.timer` 有 NEXT（30min 一轮）·
 #          `head -1 /var/cache/hpopi5b-panel/news.tsv` ⇒ `# news <时间> hot=N tech=M` 且 N/M 非 0
 #   ⚠️ 抓取器是 python3 脚本，**不跟二进制同版本**：改了它就得单独 install（不会跟着 make 走）
+
+# ③c 天气幕（首次装 / 换了抓取器时）
+ssh hpopi5b 'install -m755 /root/hpopi5b-panel/tools/fetch-weather.py /usr/local/lib/hpopi5b-panel/fetch-weather.py && \
+  install -m644 /root/hpopi5b-panel/systemd/hpopi5b-weather.service /etc/systemd/system/ && \
+  install -m644 /root/hpopi5b-panel/systemd/hpopi5b-weather.timer   /etc/systemd/system/ && \
+  systemctl daemon-reload && systemctl enable --now hpopi5b-weather.timer'
+#   验证：`systemctl list-timers hpopi5b-weather.timer` 有 NEXT（10min 一轮）·
+#          `head -1 /var/cache/hpopi5b-panel/weather.tsv` ⇒ `# weather <时间> cities=5 campus=广东东软学院`
+#          `systemctl start hpopi5b-weather.service` 手动跑一次，journal 里应出现
+#          `weather 5 cities / H 120 / D 35 -> ...`（失败则保留旧缓存、面板照常显示上一份）
 ```
 
 判据（数字，别只看「像是对的」）：`systemctl is-active hpopi5b-kiosk` = active ·

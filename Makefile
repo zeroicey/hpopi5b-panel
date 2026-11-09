@@ -8,7 +8,7 @@ LDLIBS  += $(shell pkg-config --libs $(PKGS)) -lm
 BIN  = hpopi5b-panel
 AUTH = hpopi5b-auth
 OBJ  = src/panel.o src/metrics.o src/remote.o src/theme.o src/view.o src/view_panel.o src/view_login.o src/auth.o \
-       src/scenes.o src/scene_panel.o src/scene_trending.o src/scene_news.o
+       src/scenes.o src/scene_panel.o src/scene_trending.o src/scene_news.o src/scene_weather.o
 
 all: $(BIN) $(AUTH)
 

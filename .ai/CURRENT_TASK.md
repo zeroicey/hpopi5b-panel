@@ -2,15 +2,17 @@
 
 <!-- The single live surface. Keep it under ~60 lines: it is read on every session start. -->
 
-**Status:** 🟢 第十八轮（新闻幕三列化 + `scene_t.live`）已真机验收并部署，**待提交** · **Updated:** 2026-11-09 17:0x
+**Status:** 🟢 第十九轮（天气幕：主城 + 关注城市条）已真机验收并部署，**待提交** · **Updated:** 2026-11-09 21:35
 
 ## Goal
 
 `hpcmd` 下线、全场 all-in-one 到 `hpcore`，面板**只画一台机**：主机区左右两个子列（各 2 张曲线，
 1080p 下曲线高 135 逻辑像素）＋ 下方** Tailscale 尾网块**（两个子列各 5 台）＋ **一整列**进程榜
 （按 CPU%，25 行，同值比 RSS ⇒ 空载时自动退化成内存榜）。
-三幕（`panel` / `trending` / `news`）仍在，kiosk 默认 30s 轮换；桌面/锁屏模式不轮换。
+四幕（`panel` / `trending` / `news` / `weather`）仍在，kiosk 默认 30s 轮换；桌面/锁屏模式不轮换。
 新闻幕是 **1+2 列**（热点 13 条带量度杆 + 科技 28 条分两子列），**没有列标题行**，首条 92px 放大。
+天气幕是 **主城 61.5% + 右栏 7 天 + 底部 96px「关注城市」四列**：主城广东东软学院（佛山 · 南海 · 狮山）+
+24h 曲线 + 降水条 + 日出日落/空气；关注城市 = 东莞 · 常平 / 湖北 · 利川 / 广州 / 深圳。
 
 ## Checklist
 
@@ -31,8 +33,12 @@
       顶栏改报「上屏条数」）；挖出并修掉「1 Hz 采样快照无条件进全局签名 ⇒ 文件驱动的幕也每秒整屏重绘」
       （`scene_t.live`；真屏 **2.94% → 2.01%**）。落文档：`docs/design.md` 五·五 / `docs/pitfalls.md` §24 /
       `.ai/pitfalls/cases/2026-11-09-sig-mixes-live-metrics.md` / HANDOFF 第十八轮 / 决策修订小节
-- [ ] 第十八轮 `git commit`（上轮 push 曾因 hpcore → github:443 TLS 握手失败而未推，先确认可达）
-- [ ] `--rotate` 最终值仍没定（候选 25/30/45）
+- [x] **第十九轮**：天气幕（版式 B：主城 + 底部关注城市条）；`tools/fetch-weather.py`（Open-Meteo 5 城 7 天 +
+      空气质量，10 分钟 `hpopi5b-weather.timer` 喂 `/var/cache/hpopi5b-panel/weather.tsv`）；`scene_weather.c`
+      只读缓存，`live=0`；真机已部署，`hpopi5b-weather.timer` enabled。文档：README / design 五·六 /
+      architecture「weather 幕的数据通路」/ deploy ③c / verify 天气取证 / 决策 `2026-11-09-weather-scene-layout.md`
+- [ ] 第十九轮 `git commit`（提交信息带四幕 120s、weather TSV 162 行/5 城/17ms 单帧等判据数字）
+- [ ] `--rotate` 最终值仍没定（四幕 120s 一圈已到上限；要加幕先想「告警幕常驻」）
 - [ ] `tools/deploy.sh` 支持 hpopi5b 落点（现在仍指向 hphelm 的 `/usr/local/bin`）
 - [ ] CPU 预算收口（见 Blockers —— 数字口径已经变了，要先重定「预算怎么量」）
 - [ ] 尾网块上限 10 台（`L_TS_ROWS 5 × 2`）；超过 10 台时标题的「N 台」会大于画出来的行数（现在 9 台，不冲突）
@@ -42,25 +48,22 @@
 
 ## Code state
 
-`main` @ `5314146` + 第十七轮提交 · 第十七轮已部署到 hpopi5b（2026-11-08 22:0x）。
-现场：`hpopi5b-kiosk` active · `pgrep -cx hpopi5b-panel` = 1 · **tty1** active ·
-slick-greeter 0 · 无 X 错误 · `hpopi5b-news.timer` enabled（NEXT = 30 min 后）·
-`/var/cache/hpopi5b-panel/news.tsv` 首行 `# news <时间> hot=14 tech=30`。
-判据：`probe-frames 50 30` ⇒ **>30% 变化帧 0**；`LAYOUT_DEBUG=1` ⇒ `news: cw=617.6 y0=94.0 avail=609.7 rows=15`；
-news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%** vs 钉住 panel **2%**（同口径旧 2 幕 2.9~3.2%）。
-**CPU A/B（真屏 :0，`performance` 模式 1.8 GHz，各 60s）**：旧三列 **3.47%** → 新单机 **3.68%**。
-第十六轮（趋势幕流式两列）：旧 **3.47/3.10** → 新 **3.97/3.12**（+0.25pp 量级，噪声内）；
-单帧绘制（趋势幕单幕、`HPOPI5B_PANEL_DEBUG=1` 的「绘制 Xms」中位）旧 **19.4ms** → 首版 29.0ms → 缓存后 **23.1ms**。
-⚠️ 同一份二进制在 `ondemand` 空载（408 MHz）下量到 **5.8%** —— 频率让 CPU-秒差 5 倍，**只做 A/B 比**。
-第十八轮（新闻幕三列化）：A/B 同口径 **旧 2.94% → 新 2.01%**（90s 窗口、3 幕轮换）；
-单帧绘制 news ~20ms 但只在分钟翻转/缓存改写时发生；上屏 41 条（旧 29 条）。
-第七轮到第十二轮的逐轮记录在 `.ai/sessions/2026-11-05-rounds-7-to-12-handoff.md`。
+`main` @ `afa372d`（第十八轮）+ 第十九轮未提交工作区。现场：`hpopi5b-kiosk` active ·
+**四幕轮换 120s 一圈** · `pgrep -cx hpopi5b-panel` = 1 · **tty1** active · slick-greeter 0。
+`hpopi5b-news.timer` / `hpopi5b-weather.timer` 均 enabled；`/var/cache/hpopi5b-panel/weather.tsv`
+162 行（P1 + C5 + H120 + D35），首行 `# weather <时间> cities=5 campus=广东东软学院`。
+第十九轮判据：`probe-frames 60` ⇒ **>30% 变化帧 0**（weather 幕静态）；真屏 CPU A/B 同口径
+（`performance` 1.8GHz、120s、load ~0.4）**旧 2.47% → 新 1.22%**；weather 单帧绘制 **15~17 ms**
+（只在进幕/分钟边界）；`pgrep -cx hpopi5b-panel`=1、tty1、greeter 0。
+历史 A/B（同口径）：第十八轮 2.94%→2.01%（90s、3 幕）；第十六轮 3.47/3.10→3.97/3.12；
+趋势幕单帧 19.4→23.1ms。第七轮到第十二轮的逐轮记录在 `.ai/sessions/2026-11-05-rounds-7-to-12-handoff.md`。
+
 
 ## Constraints
 
 边界，不是阻塞项：决定改法，但没人在等它们。
 
-- **CPU 预算 `<1% of one core`**：这个数在 hpopi5b 上量不出来（见 Blockers），当作「不许变慢」的相对门槛。
+- **CPU 预算 `<1% of one core`**：第十九轮四幕 120s A/B 实测 **1.22%**（performance 1.8GHz），仍略超；
   再降的正解：PangoLayout 缓存（每秒 ~50 段文字）+ 「值没变就不重画那一行」的区域局部重绘。
 - **两列固定高度必须相等**（`FIX_A == FIX_B == 187`）：「余」为负时禁止再压曲线（会挤字）。
 - **曲线量程由 `v_chart_scale()` 统一算**，`v_spark/v_spark2` 必须显式传它返回的 vmax（网格与曲线不能各算一套）。
@@ -70,6 +73,8 @@ news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%
   **不 fork `tailscale status`**（起进程 + 几百毫秒，1 Hz 探针扛不住）。
   ⚠️ JSON 里对端列表的键是 **`Peer`（单数）**，写 `Peers` 会静默得到 0 台。
 - 容器只剩「个数」（cgroup 目录计数，不碰 socket）；**不要再做容器清单**（用户已否：容器里的进程本来就在进程榜里）。
+- **天气幕的缓存契约**：`P`(主城) / `C`(19 列当前) / `H`(8 列 ×24) / `D`(11 列 ×7 天)；缺值 `-1` 不编零；
+  抓不到保上一份；无文件空态写清 `hpopi5b-weather.service` 与缓存路径；坐标只改 `fetch-weather.py` 的 `CITIES`。
 - **新闻幕的缓存契约**：`H\t标题\t源\t热度` / `T\t标题\t源\tunix_ts`；抓不到保上一份，**不灌假数据**；
   热搜**没有分类字段**（不要做关键词过滤冒充分类）；榜单右对齐量化值统一 `C_YELLOW`（不借 `C_PEACH`）。
 - **测试实例与真机实例同名** ⇒ 杀进程按 `/proc/<pid>/environ` 的 `DISPLAY` 挑 pid，永不 `pkill -f`。
@@ -80,9 +85,8 @@ news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%
 
 ## Blockers
 
-- CPU 数字口径 — waiting on owner：`ondemand` 408 MHz 空载下 3.5~5.8% 到底算不算超预算？
-  选项：① 改文档预算为「A/B 不变慢」；② 固定 `performance` 模式（费电、Pi 烫）；
-  ③ 真做 PangoLayout 缓存 + 区域局部重绘再谈绝对值。
+- CPU 绝对值仍略超 `<1%`：四幕 120s 实测 1.22%（performance 1.8GHz）；下一步只能做 PangoLayout 缓存 +
+  区域局部重绘，或接受「A/B 不变慢」口径。不是本轮阻塞项。
 
 ## Pitfall reminders for the current branch
 
@@ -110,6 +114,6 @@ news 幕单帧绘制 ≈ **6 ms**（panel 28 ms）；真屏 CPU 3 幕轮换 **3%
 ## Next action
 
 1. 把 Blockers 的「预算口径三选一」交给 owner。
-2. 定 `--rotate`（现在 3 幕 ⇒ 90s 一圈）；`tools/deploy.sh` 改成支持 hpopi5b 落点。
+2. 定 `--rotate`（现在 4 幕 ⇒ 120s 一圈，已到上限；再加幕要先想「告警幕常驻」）；`tools/deploy.sh` 改成支持 hpopi5b 落点。
 3. 新闻幕的三个小尾巴：36氪 feed 解析 0 条；`--hot 14` < 一列 15 行；顶栏「热点 14 · 科技 30」是池子大小而非上屏条数。
 4. 若 owner 要真降 CPU：先加 PangoLayout 缓存（`v_text` 里按 (字符串, 字号, 颜色) 缓存 layout），再量 A/B。

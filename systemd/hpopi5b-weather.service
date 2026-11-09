@@ -1,0 +1,11 @@
+[Unit]
+Description=抓取天气幕数据（Open-Meteo：5 城 7 天预报 + 空气质量）
+Documentation=https://github.com/zeroicey/hpopi5b-panel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# 抓不到就保留上一份缓存（面板照常显示上一份并标注「N 分钟前同步」；抓取失败不影响面板）
+# 免 key 免注册；空气质量接口挂了只把 aqi/pm25/uv 写成 -1，主预报照常落盘
+ExecStart=/usr/local/lib/hpopi5b-panel/fetch-weather.py /var/cache/hpopi5b-panel/weather.tsv

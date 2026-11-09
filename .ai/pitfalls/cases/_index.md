@@ -26,3 +26,5 @@
 | `2026-11-06-eyeballing-scaled-screenshots.md` | 用缩放截图的像素坐标判版面，三次把「正常」误读成「越界」；先算 `LAYOUT_DEBUG` 再 `pngcrop` 数像素 |
 | `2026-11-05-probe-frames-vs-scene-rotation.md` | 判据「>30% 帧必须 0」在 kiosk 30s 换幕下必然假报警；换幕只满足「闪」三条指纹的第①条，用 `--rotate 0` 拿干净数 |
 | `2026-11-06-trailing-newline-and-per-frame-layout.md` | 行尾 `\n` 没去掉 ⇒ pango 多算一行（`H_DESC=48` 而非 24），排不满却看不出来；修好后每帧重排又白烧 +1.5% CPU ⇒ 排版计划缓存 |
+| `2026-11-09-sig-mixes-live-metrics.md` | 全局内容签名混进 1 Hz 采样 ⇒ 文件驱动的新闻幕也每秒整屏重绘（≈1% 单核）；`scene_t.live` 区分 |
+| `2026-11-09-open-meteo-geocoding-ambiguity.md` | 中文小镇名动态 geocode 会命中河南/朝鲜同名地；天气坐标必须写死人核过的经纬度 |
