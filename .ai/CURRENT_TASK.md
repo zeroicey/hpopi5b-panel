@@ -2,7 +2,7 @@
 
 <!-- The single live surface. Keep it under ~60 lines: it is read on every session start. -->
 
-**Status:** 🟢 第十九轮（天气幕：主城 + 关注城市条）已真机验收并部署，**待提交** · **Updated:** 2026-11-09 21:35
+**Status:** 🟢 第十九轮（天气幕：主城 + 关注城市条）已真机验收、部署并提交 `31a55ff` · **Updated:** 2026-11-09 21:40
 
 ## Goal
 
@@ -37,7 +37,7 @@
       空气质量，10 分钟 `hpopi5b-weather.timer` 喂 `/var/cache/hpopi5b-panel/weather.tsv`）；`scene_weather.c`
       只读缓存，`live=0`；真机已部署，`hpopi5b-weather.timer` enabled。文档：README / design 五·六 /
       architecture「weather 幕的数据通路」/ deploy ③c / verify 天气取证 / 决策 `2026-11-09-weather-scene-layout.md`
-- [ ] 第十九轮 `git commit`（提交信息带四幕 120s、weather TSV 162 行/5 城/17ms 单帧等判据数字）
+- [x] 第十九轮已提交 `31a55ff`（四幕 120s / weather TSV 162 行 / 5 城 / 单帧 15~17ms / CPU 1.22% 已写进提交信息）
 - [ ] `--rotate` 最终值仍没定（四幕 120s 一圈已到上限；要加幕先想「告警幕常驻」）
 - [ ] `tools/deploy.sh` 支持 hpopi5b 落点（现在仍指向 hphelm 的 `/usr/local/bin`）
 - [ ] CPU 预算收口（见 Blockers —— 数字口径已经变了，要先重定「预算怎么量」）
