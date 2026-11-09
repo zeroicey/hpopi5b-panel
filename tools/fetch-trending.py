@@ -15,6 +15,11 @@
 
 部署：systemd 的 hpopi5b-trending.timer 每 3 小时跑一次；面板只读缓存文件，
 **网络故障与面板渲染互相隔离**（抓不到就保留上一份，面板照常显示）。
+
+防「半页榜单」（2026-11-09 加）：页面结尾不是 </html>、article 条数与
+「stars today」处数不一致、或条数比上一份骤降 —— 都算可疑，重抓一次；
+两次都可疑就**不覆盖缓存**并以非 0 退出（journal 里能看到原因）。
+两次结果一致就当真：GitHub 自己也会给出比前一天短的榜单（当天只有 9 条）。
 """
 import html
 import os
@@ -48,6 +53,43 @@ def clean(s: str) -> str:
     return WS.sub(" ", "".join(out)).strip()
 
 
+def fetch_page(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": UA})
+    with urllib.request.urlopen(req, timeout=25) as r:
+        return r.read().decode("utf-8", "replace")
+
+
+def parse(page: str):
+    """HTML → 行列表。只认 <article class="Box-row">，GitHub 改版时这里会先炸"""
+    rows = []
+    for b in BLOCK.findall(page):
+        m = HREF.search(b)
+        if not m:
+            continue
+        name = m.group(1)
+        d = DESC.search(b)
+        desc = clean(d.group(1)) if d else ""
+        if len(desc) > 160:
+            desc = desc[:157] + "…"
+        lang = LANG.search(b)
+        today = TODAY.search(b)
+        total = TOTAL.search(b)
+        rows.append((name, clean(lang.group(1)) if lang else "", today.group(1) if today else "0",
+                     total.group(1) if total else "0", desc))
+    return rows
+
+
+def prev_count(path: str) -> int:
+    """上一份缓存的条数（取头行末字段；没有或读不了就是 0）"""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            first = f.readline()
+    except OSError:
+        return 0
+    m = re.search(r"\s(\d+)\s*$", first)
+    return int(m.group(1)) if m else 0
+
+
 def main() -> int:
     args = sys.argv[1:]
     if not args:
@@ -65,29 +107,41 @@ def main() -> int:
     url = f"{URL}?since={since}"
     if language:
         url += "&language=" + language
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=25) as r:
-        page = r.read().decode("utf-8", "replace")
+    # 抓取失败/疑似半页时不覆盖缓存（面板继续显示上一份）：最多试两次，
+    # 第二次结果与第一次一致才当真 —— 这样既能挡住「chunked 传到一半就断」，
+    # 又不会把「GitHub 今天真的只给了 9 条」当成故障一直钉着旧榜单。
+    rows = None
+    why = ""
+    prev = prev_count(out_path)
+    for attempt in (1, 2):
+        try:
+            page = fetch_page(url)
+        except Exception as e:  # 超时 / 连接断 / IncompleteRead
+            why = f"{type(e).__name__}: {e}"
+        else:
+            if not page.rstrip().endswith("</html>"):
+                why = f"页面不完整：{len(page)} 字节，结尾没有 </html>"
+            else:
+                got = parse(page)
+                n_today = page.count("stars today")
+                if not got:
+                    why = "没抓到任何条目（页面结构变了？）"
+                elif len(got) != n_today:
+                    why = f"article {len(got)} 条 vs stars today {n_today} 处，疑似截断"
+                elif attempt == 1 and prev and len(got) < max(5, int(prev * 0.6)):
+                    why = f"新抓 {len(got)} 条 < 上一份 {prev} 条 × 0.6，重抓一次确认"
+                else:
+                    rows = got
+                    break
+        if attempt == 1:
+            time.sleep(5)
 
-    rows = []
-    for b in BLOCK.findall(page):
-        m = HREF.search(b)
-        if not m:
-            continue
-        name = m.group(1)
-        d = DESC.search(b)
-        desc = clean(d.group(1)) if d else ""
-        if len(desc) > 160:
-            desc = desc[:157] + "…"
-        lang = LANG.search(b)
-        today = TODAY.search(b)
-        total = TOTAL.search(b)
-        rows.append((name, clean(lang.group(1)) if lang else "", today.group(1) if today else "0",
-                     total.group(1) if total else "0", desc))
-
-    if not rows:
-        print("没抓到任何条目（页面结构变了？）", file=sys.stderr)
+    if rows is None:
+        print(f"trending: 抓取失败，保留上一份缓存（{prev} 条）—— {why}", file=sys.stderr)
         return 1
+
+    if why:
+        print(f"trending: 重抓一次后接受（首次的可疑原因：{why}）", file=sys.stderr)
 
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(out_path) or ".", prefix=".trending.")

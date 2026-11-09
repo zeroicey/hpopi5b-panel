@@ -196,6 +196,8 @@ HPOPI5B_PANEL_DEBUG=1 …            # 主循环仪表：it/s · poll 结果 · 
 所以由 `tools/fetch-trending.py` 抓 `github.com/trending?since=daily` 解析成 TSV，存到
 `/var/cache/hpopi5b-panel/trending.tsv`，面板**只读这个文件**。`hpopi5b-trending.timer` 每 3 小时跑一次
 （`OnUnitActiveSec=3h`，开机 2 分钟后先跑一次）；抓不到就保留上一份，**网络故障不影响渲染**。
+「疑似半页」（结尾不是 `</html>`、`article` 条数与 `stars today` 处数对不上、条数比上一份骤降）会重抓一次；
+两次都可疑就不覆盖缓存并记 journal（两次一致则当真——GitHub 自己也会给短榜）。
 换榜单：改 `systemd/hpopi5b-trending.service` 的 `ExecStart` 追加 `--since weekly` 或 `--language rust`。
 
 `news`（新闻，**两列**：左「国内热点」14 条带热度 `1337万`、右「科技」15 条带「来源 · 10h」）。
@@ -237,7 +239,7 @@ src/scene.h         幕的接口：draw + 自己的内容签名（不碰 X）
 src/scenes.c        幕的注册表 + 轮换调度 + 转场推进（纯逻辑）
 src/scene_panel.c   幕「运维面板」（转调 view_panel.c）
 src/scene_trending.c 幕「GitHub 趋势」（只读缓存 TSV，缺文件时给空态；流式两列 + 排版计划缓存）
-tools/fetch-trending.py GitHub Trending 抓取器（无依赖，python3）
+tools/fetch-trending.py GitHub Trending 抓取器（无依赖，python3；防半页：可疑重抓一次，两次都可疑则不覆盖缓存）
 src/scene_news.c   幕「新闻」（两列：国内热点 / 科技；只读缓存 TSV，缺文件时给空态 + 抓取命令）
 tools/fetch-news.py  新闻抓取器（头条热榜 + 百度热搜 + 3 路 RSS，无依赖，python3）
 systemd/        hpopi5b-trending.{service,timer}（每 3 小时同步一次榜单）· hpopi5b-news.{service,timer}（每 30 分钟）
